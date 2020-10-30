@@ -1,9 +1,9 @@
 [package]
 name = "savon"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Geoffroy Couprie <contact@geoffroycouprie.com>"]
 edition = "2018"
-description = "reserved"
+description = "SOAP async HTTP client generator"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/netwo-io/savon"
 readme = "README.md"
@@ -11,13 +11,13 @@ documentation = "https://docs.rs/savon"
 keywords = ["soap"]
 
 [dependencies]
-log = "0.4"
-xmltree = "0.10"
-chrono = "0.4"
-quote = "1.0"
-proc-macro2 = "1.0"
 case = "^1.0"
+chrono = "0.4"
+log = "0.4"
+proc-macro2 = "1.0"
+quote = "1.0"
 reqwest = "0.10"
+xmltree = "0.10"
 
 [workspace]
 members = [ "savon-test" ]

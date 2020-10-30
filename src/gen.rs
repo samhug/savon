@@ -62,33 +62,38 @@ pub fn gen(wsdl: &Wsdl) -> Result<String, GenError> {
         let op_name = Ident::new(&name.to_snake(), Span::call_site());
         let input_name = Ident::new(&operation.input.as_ref().unwrap().to_snake(), Span::call_site());
         let input_type = Ident::new(&operation.input.as_ref().unwrap().to_camel(), Span::call_site());
+        let full_input_type = quote!{ messages::#input_type };
 
         let op_str = Literal::string(&name);
 
         match (operation.output.as_ref(), operation.faults.as_ref()) {
             (None, None) => {
                 quote! {
-                    pub async fn #op_name(&self, #input_name: #input_type) -> Result<(), savon::Error> {
+                    pub async fn #op_name(&self, #input_name: #full_input_type) -> Result<(), savon::Error> {
                         savon::http::one_way(&self.client, &self.base_url, #target_namespace, #op_str, &#input_name).await
                     }
                 }
             },
             (None, Some(_)) => quote!{},
             (Some(out), None) => {
-                let out_name = Ident::new(&out, Span::call_site());
+                let output_type = Ident::new(&out, Span::call_site());
+                let full_output_type = quote!{ messages::#output_type };
 
                 quote! {
-                    pub async fn #op_name(&self, #input_name: #input_type) -> Result<Result<#out_name, ()>, savon::Error> {
+                    pub async fn #op_name(&self, #input_name: #full_input_type) -> Result<Result<#full_output_type, ()>, savon::Error> {
                         savon::http::request_response(&self.client, &self.base_url, #target_namespace, #op_str, &#input_name).await
                     }
                 }
             },
             (Some(out), Some(_)) => {
-                let out_name = Ident::new(&out, Span::call_site());
-                let err_name = Ident::new(&format!("{}Error", name.to_camel()), Span::call_site());
+                let output_type = Ident::new(&out, Span::call_site());
+                let full_output_type = quote!{ messages::#output_type };
+                let error_type = Ident::new(&format!("{}Error", name.to_camel()), Span::call_site());
+                let full_error_type = quote!{ messages::#error_type };
 
                 quote! {
-                    pub async fn #op_name(&self, #input_name: #input_type) -> Result<Result<#out_name, #err_name>, savon::Error> {
+                    pub async fn #op_name(&self, #input_name: #full_input_type)
+                        -> Result<Result<#full_output_type, #full_error_type>, savon::Error> {
                         unimplemented!()
                         /*let req = hyper::http::request::Builder::new()
                             .method("POST")
@@ -123,12 +128,15 @@ pub fn gen(wsdl: &Wsdl) -> Result<String, GenError> {
                     .map(|(field_name, (attributes, field_type))| {
                         let fname = Ident::new(&field_name.to_snake(), Span::call_site());
                         let ft = match field_type {
-                            SimpleType::Boolean => Ident::new("bool", Span::call_site()),
-                            SimpleType::String => Ident::new("String", Span::call_site()),
-                            SimpleType::Float => Ident::new("f64", Span::call_site()),
-                            SimpleType::Int => Ident::new("i64", Span::call_site()),
-                            SimpleType::DateTime => Ident::new("chrono::DateTime", Span::call_site()),
-                            SimpleType::Complex(s) => Ident::new(&s.to_camel(), Span::call_site()),
+                            SimpleType::Boolean => quote!{ bool }, //Ident::new("bool", Span::call_site()),
+                            SimpleType::String => quote!{ String },//Ident::new("String", Span::call_site()),
+                            SimpleType::Float => quote!{ f64 },//Ident::new("f64", Span::call_site()),
+                            SimpleType::Int => quote!{ i64 },//Ident::new("i64", Span::call_site()),
+                            SimpleType::DateTime => quote!{ DateTime<Utc> },//Ident::new("DateTime<Utc>", Span::call_site()),
+                            SimpleType::Complex(s) => {
+                                let ty = Ident::new(&s.to_camel(), Span::call_site());
+                                quote!{ #ty }
+                            },
                         };
 
                         let ft = match (attributes.min_occurs.as_ref(), attributes.max_occurs.as_ref()) {
@@ -351,7 +359,7 @@ pub fn gen(wsdl: &Wsdl) -> Result<String, GenError> {
 
             quote! {
                 #[derive(Clone, Debug, Default)]
-                pub struct #mname(pub #iname);
+                pub struct #mname(pub types::#iname);
 
                 impl savon::gen::ToElements for #mname {
                     fn to_elements(&self) -> Vec<xmltree::Element> {
@@ -361,7 +369,7 @@ pub fn gen(wsdl: &Wsdl) -> Result<String, GenError> {
 
                 impl savon::gen::FromElement for #mname {
                     fn from_element(element: &xmltree::Element) -> Result<Self, savon::Error> {
-                        #iname::from_element(element).map(#mname)
+                        types::#iname::from_element(element).map(#mname)
                     }
                 }
             }
@@ -371,16 +379,26 @@ pub fn gen(wsdl: &Wsdl) -> Result<String, GenError> {
     let service_name = Ident::new(&wsdl.name, Span::call_site());
 
     let toks = quote! {
-        use savon::internal::xmltree;
-        use savon::rpser::xml::*;
+        pub mod types {
+            use savon::internal::xmltree;
+            use savon::rpser::xml::*;
+            #[allow(unused_imports)]
+            use savon::internal::chrono::{DateTime, offset::Utc};
 
-        #(#types)*
+            #(#types)*
+        }
+
+        pub mod messages {
+            use savon::internal::xmltree;
+            use super::types;
+
+            #(#messages)*
+        }
 
         pub struct #service_name {
             pub base_url: String,
             pub client: savon::internal::reqwest::Client,
         }
-        #(#messages)*
 
         #[allow(dead_code)]
         impl #service_name {

@@ -179,34 +179,38 @@ pub struct StockQuoteService {
     pub client: savon::internal::reqwest::Client,
 }
 
-#[derive(Clone, Debug, Default)]
-pub struct GetLastTradePriceOutput(pub TradePrice);
+pub mod messages {
+  use super::*;
 
-impl savon::gen::ToElements for GetLastTradePriceOutput {
+  #[derive(Clone, Debug, Default)]
+  pub struct GetLastTradePriceOutput(pub TradePrice);
+
+  impl savon::gen::ToElements for GetLastTradePriceOutput {
     fn to_elements(&self) -> Vec<xmltree::Element> {
-        self.0.to_elements()
+      self.0.to_elements()
     }
-}
+  }
 
-impl savon::gen::FromElement for GetLastTradePriceOutput {
+  impl savon::gen::FromElement for GetLastTradePriceOutput {
     fn from_element(element: &xmltree::Element) -> Result<Self, savon::Error> {
-        TradePrice::from_element(element).map(GetLastTradePriceOutput)
+      TradePrice::from_element(element).map(GetLastTradePriceOutput)
     }
-}
+  }
 
 #[derive(Clone, Debug, Default)]
-pub struct GetLastTradePriceInput(pub TradePriceRequest);
+  pub struct GetLastTradePriceInput(pub TradePriceRequest);
 
-impl savon::gen::ToElements for GetLastTradePriceInput {
+  impl savon::gen::ToElements for GetLastTradePriceInput {
     fn to_elements(&self) -> Vec<xmltree::Element> {
-        self.0.to_elements()
+      self.0.to_elements()
     }
-}
+  }
 
-impl savon::gen::FromElement for GetLastTradePriceInput {
+  impl savon::gen::FromElement for GetLastTradePriceInput {
     fn from_element(element: &xmltree::Element) -> Result<Self, savon::Error> {
-        TradePriceRequest::from_element(element).map(GetLastTradePriceInput)
+      TradePriceRequest::from_element(element).map(GetLastTradePriceInput)
     }
+  }
 }
 
 #[allow(dead_code)]
@@ -221,8 +225,8 @@ impl StockQuoteService {
 
     pub async fn get_last_trade_price(
         &self,
-        get_last_trade_price_input: GetLastTradePriceInput,
-    ) -> Result<Result<GetLastTradePriceOutput, ()>, savon::Error> {
+        get_last_trade_price_input: messages::GetLastTradePriceInput,
+    ) -> Result<Result<messages::GetLastTradePriceOutput, ()>, savon::Error> {
         savon::http::request_response(
             &self.client,
             &self.base_url,
