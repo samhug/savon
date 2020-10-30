@@ -35,10 +35,10 @@ pub enum Error {
 ///
 /// ```rust
 /// extern crate xmltree;
-/// extern crate confluence;
+/// extern crate savon;
 ///
 /// use xmltree::Element;
-/// use confluence::rpser::xml::BuildElement;
+/// use savon::rpser::xml::BuildElement;
 ///
 /// fn main() {
 ///     assert_eq!(
