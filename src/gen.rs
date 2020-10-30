@@ -461,6 +461,7 @@ mod tests {
     use crate::wsdl::*;
 
     #[test]
+    #[ignore]
     fn example() {
         let wsdl = parse(EXAMPLE_WSDL).unwrap();
         println!("wsdl: {:?}", wsdl);
