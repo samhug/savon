@@ -1,8 +1,7 @@
 # savon, a SOAP client generator for Rust
 
-savon generates code from a WSDL file, that you can then include
-in your project. It will generate serialization and deserialization
-code, along with an async HTTP client API (based on reqwest).
+savon generates code from a WSDL file, that you can then include in your project. It will generate serialization and
+deserialization code, along with an async HTTP client API (based on reqwest).
 
 ## Usage
 
@@ -10,7 +9,7 @@ in `Cargo.toml`:
 
 ```toml
 [dependencies]
-savon = "0.1"
+savon = "0.2"
 ```
 
 in `build.rs`:
@@ -18,7 +17,8 @@ in `build.rs`:
 ```rust
 fn main() {
     let out_dir = env::var("OUT_DIR").unwrap();
-    let s = savon::gen::gen_write("./assets/example.wsdl", &out_dir).unwrap();
+    let s = savon::gen::gen_write("./assets/example1.wsdl", &out_dir).unwrap();
+    let s = savon::gen::gen_write("./assets/example2", &out_dir).unwrap();
 }
 ```
 
@@ -26,7 +26,8 @@ Finally, in your code:
 
 ```rust
 mod soap {
-    include!(concat!(env!("OUT_DIR"), "/example.rs"));
+    include!(concat!(env!("OUT_DIR"), "/example1.rs"));
+    include!(concat!(env!("OUT_DIR"), "/example2.rs"));
 }
 ```
 
@@ -34,7 +35,7 @@ You can then use it as follows:
 
 ```rust
     let client = soap::StockQuoteService::new("http://example.com".to_string());
-    let res = client.get_last_trade_price(soap::GetLastTradePriceInput(TradePriceRequest { ticker_symbol: "SOAP".to_string() })).await?;
+let res = client.get_last_trade_price(soap::GetLastTradePriceInput(TradePriceRequest { ticker_symbol: "SOAP".to_string() })).await?;
 ```
 
 ## Under the hood
@@ -124,9 +125,9 @@ impl savon::gen::ToElements for TradePriceRequest {
         vec![vec![
             xmltree::Element::node("tickerSymbol").with_text(self.ticker_symbol.to_string())
         ]]
-        .drain(..)
-        .flatten()
-        .collect()
+            .drain(..)
+            .flatten()
+            .collect()
     }
 }
 
@@ -152,9 +153,9 @@ impl savon::gen::ToElements for TradePrice {
         vec![vec![
             xmltree::Element::node("price").with_text(self.price.to_string())
         ]]
-        .drain(..)
-        .flatten()
-        .collect()
+            .drain(..)
+            .flatten()
+            .collect()
     }
 }
 
@@ -234,7 +235,10 @@ impl StockQuoteService {
             "GetLastTradePrice",
             &get_last_trade_price_input,
         )
-        .await
+            .await
     }
 }
 ```
+
+## Release Note:
+1. support `JAX-WS` Generated wsdl 

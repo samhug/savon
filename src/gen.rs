@@ -9,8 +9,8 @@ pub trait ToElements {
 
 pub trait FromElement {
     fn from_element(element: &xmltree::Element) -> Result<Self, crate::Error>
-    where
-        Self: Sized;
+        where
+            Self: Sized;
 }
 
 impl<T: ToElements> ToElements for Option<T> {
@@ -44,7 +44,14 @@ impl From<std::io::Error> for GenError {
 }
 
 pub fn gen_write(path: &str, out: &str) -> Result<(), ()> {
-    let out_path = format!("{}/example.rs", out);
+    let file_name = std::path::Path::new(path).file_name().unwrap().to_str();
+    let out_path = match file_name {
+        Some(n) => match n.rfind(".") {
+            Some(index) => format!("{}/{}.rs", out, &n[..index].to_snake()),
+            None => format!("{}/{}.rs", out, n.to_snake()),
+        },
+        None => format!("{}/example.rs", out),
+    };
     let v = std::fs::read(path).unwrap();
     let mut output = File::create(out_path).unwrap();
     let wsdl = parse(&v[..]).unwrap();
@@ -73,8 +80,8 @@ pub fn gen(wsdl: &Wsdl) -> Result<String, GenError> {
                         savon::http::one_way(&self.client, &self.base_url, #target_namespace, #op_str, &#input_name).await
                     }
                 }
-            },
-            (None, Some(_)) => quote!{},
+            }
+            (None, Some(_)) => quote! {},
             (Some(out), None) => {
                 let output_type = Ident::new(&out, Span::call_site());
                 let full_output_type = quote!{ messages::#output_type };
@@ -84,7 +91,7 @@ pub fn gen(wsdl: &Wsdl) -> Result<String, GenError> {
                         savon::http::request_response(&self.client, &self.base_url, #target_namespace, #op_str, &#input_name).await
                     }
                 }
-            },
+            }
             (Some(out), Some(_)) => {
                 let output_type = Ident::new(&out, Span::call_site());
                 let full_output_type = quote!{ messages::#output_type };
@@ -111,180 +118,179 @@ pub fn gen(wsdl: &Wsdl) -> Result<String, GenError> {
                         */
                     }
                 }
-            },
+            }
         }
     }).collect::<Vec<_>>();
 
-    let types = wsdl
-        .types
-        .iter()
-        .map(|(name, t)| {
-            if let Type::Complex(c) = t {
-                let type_name = Ident::new(&name.to_camel(), Span::call_site());
+    let types = if !wsdl.types.is_empty() {
+        wsdl
+            .types
+            .iter()
+            .map(|(name, t)| {
+                if let Type::Complex(c) = t {
+                    let type_name = Ident::new(&name.to_camel(), Span::call_site());
 
-                let fields = c
-                    .fields
-                    .iter()
-                    .map(|(field_name, (attributes, field_type))| {
-                        let fname = Ident::new(&field_name.to_lowercase(), Span::call_site());
-                        let ft = match field_type {
-                            SimpleType::Boolean => quote!{ bool }, //Ident::new("bool", Span::call_site()),
-                            SimpleType::String => quote!{ String },//Ident::new("String", Span::call_site()),
-                            SimpleType::Float => quote!{ f64 },//Ident::new("f64", Span::call_site()),
-                            SimpleType::Int => quote!{ i64 },//Ident::new("i64", Span::call_site()),
-                            SimpleType::DateTime => quote!{ DateTime<Utc> },//Ident::new("DateTime<Utc>", Span::call_site()),
-                            SimpleType::Complex(s) => {
-                                let ty = Ident::new(&s.to_camel(), Span::call_site());
-                                quote!{ #ty }
-                            },
-                        };
+                    let fields = c
+                        .fields
+                        .iter()
+                        .map(|(field_name, (attributes, field_type))| {
+                            let fname = Ident::new(&field_name.to_lowercase(), Span::call_site());
+                            let ft = match field_type {
+                                SimpleType::Boolean => quote!{ bool }, //Ident::new("bool", Span::call_site()),
+                                SimpleType::String => quote!{ String },//Ident::new("String", Span::call_site()),
+                                SimpleType::Float => quote!{ f64 },//Ident::new("f64", Span::call_site()),
+                                SimpleType::Int => quote!{ i64 },//Ident::new("i64", Span::call_site()),
+                                SimpleType::DateTime => quote!{ chrono::DateTime },//Ident::new("DateTime<Utc>", Span::call_site()),
+                                SimpleType::Complex(s) => {
+                                    let ty = Ident::new(&s.to_camel(), Span::call_site());
+                                    quote!{ #ty }
+                                },
+                            };
 
-                        let ft = match (attributes.min_occurs.as_ref(), attributes.max_occurs.as_ref()) {
-                          (Some(Occurence::Num(0)), Some(Occurence::Num(1))) => quote! { Option<#ft> },
-                          (Some(Occurence::Num(1)), Some(Occurence::Num(1))) => quote!{ #ft },
-                          (Some(_), Some(_)) => quote! { Vec<#ft> },
-                          _ => quote! { #ft }
-                        };
-                        let ft = if attributes.nillable {
-                            quote! { Option<#ft> }
-                        } else {
-                            ft
-                        };
+                            let ft = match (attributes.min_occurs.as_ref(), attributes.max_occurs.as_ref()) {
+                              (Some(Occurence::Num(0)), Some(Occurence::Num(1))) => quote! { Option<#ft> },
+                              (Some(Occurence::Num(1)), Some(Occurence::Num(1))) => quote!{ #ft },
+                              (Some(_), Some(_)) => quote! { Vec<#ft> },
+                              _ => quote! { #ft }
+                            };
+                            let ft = if attributes.nillable {
+                                quote! { Option<#ft> }
+                            } else {
+                                ft
+                            };
 
-                        quote! {
+                            quote! {
                             pub #fname: #ft,
                         }
-                    })
-                    .collect::<Vec<_>>();
+                        })
+                        .collect::<Vec<_>>();
 
-                let fields_serialize_impl = c
-                    .fields
-                    .iter()
-                    .map(|(field_name, (attributes, field_type))| {
-                        let fname = Ident::new(&field_name.to_lowercase(), Span::call_site());
-                        //FIXME: handle more complex types
-                        /*let ft = match field_type {
-                            SimpleType::Boolean => Ident::new("bool", Span::call_site()),
-                            SimpleType::String => Ident::new("String", Span::call_site()),
-                            SimpleType::Float => Ident::new("f64", Span::call_site()),
-                            SimpleType::Int => Ident::new("i64", Span::call_site()),
-                            SimpleType::DateTime => Ident::new("String", Span::call_site()),
-                            SimpleType::Complex(s) => Ident::new(&s, Span::call_site()),
-                        };*/
-                        let ftype = Literal::string(field_name);
-                        let prefix = quote! { xmltree::Element::node(#ftype) };
+                    let fields_serialize_impl = c
+                        .fields
+                        .iter()
+                        .map(|(field_name, (attributes, field_type))| {
+                            let fname = Ident::new(&field_name.to_lowercase(), Span::call_site());
+                            //FIXME: handle more complex types
+                            /*let ft = match field_type {
+                                SimpleType::Boolean => Ident::new("bool", Span::call_site()),
+                                SimpleType::String => Ident::new("String", Span::call_site()),
+                                SimpleType::Float => Ident::new("f64", Span::call_site()),
+                                SimpleType::Int => Ident::new("i64", Span::call_site()),
+                                SimpleType::DateTime => Ident::new("String", Span::call_site()),
+                                SimpleType::Complex(s) => Ident::new(&s, Span::call_site()),
+                            };*/
+                            let ftype = Literal::string(field_name);
+                            let prefix = quote! { xmltree::Element::node(#ftype) };
 
-                        match (attributes.min_occurs.as_ref(), attributes.max_occurs.as_ref()) {
-                          (Some(_), Some(_)) => if attributes.nillable {
-                              quote! {
+                            match (attributes.min_occurs.as_ref(), attributes.max_occurs.as_ref()) {
+                                (Some(_), Some(_)) => if attributes.nillable {
+                                    quote! {
                                   self.#fname.as_ref().map(|v| v.iter().map(|i| {
                                       #prefix.with_children(i.to_elements())
                                   }).collect()).unwrap_or_else(Vec::new)
                               }
-                          } else {
-                              quote! {
+                                } else {
+                                    quote! {
                                   self.#fname.iter().map(|i| {
                                       #prefix.with_children(i.to_elements())
                                   }).collect()
                               }
-                          },
-                          _ => {
-                              match field_type {
-                                  SimpleType::Complex(_s) => quote!{ vec![#prefix.with_children(self.#fname.to_elements())]},
-                                  _ => quote!{ vec![#prefix.with_text(self.#fname.to_string())] },
-                              }
+                                },
+                                _ => {
+                                    match field_type {
+                                        SimpleType::Complex(_s) => quote! { vec![#prefix.with_children(self.#fname.to_elements())]},
+                                        _ => quote! { vec![#prefix.with_text(self.#fname.to_string())] },
+                                    }
+                                }
+                            }
+                        })
+                        .collect::<Vec<_>>();
 
-                          }
-                        }
-                    })
-                    .collect::<Vec<_>>();
-
-                let serialize_impl = if fields_serialize_impl.is_empty() {
-                    quote! {
+                    let serialize_impl = if fields_serialize_impl.is_empty() {
+                        quote! {
                         impl savon::gen::ToElements for #type_name {
                             fn to_elements(&self) -> Vec<xmltree::Element> {
                                 vec![]
                             }
                         }
                     }
-
-                }else {
-                    quote! {
+                    } else {
+                        quote! {
                         impl savon::gen::ToElements for #type_name {
                             fn to_elements(&self) -> Vec<xmltree::Element> {
                                 vec![#(#fields_serialize_impl),*].drain(..).flatten().collect()
                             }
                         }
                     }
-                };
+                    };
 
-                let fields_deserialize_impl = c
-                    .fields
-                    .iter()
-                    .map(|(field_name, (attributes, field_type))| {
-                        let fname = Ident::new(&field_name.to_lowercase(), Span::call_site());
-                        let ftype = Literal::string(field_name);
+                    let fields_deserialize_impl = c
+                        .fields
+                        .iter()
+                        .map(|(field_name, (attributes, field_type))| {
+                            let fname = Ident::new(&field_name.to_lowercase(), Span::call_site());
+                            let ftype = Literal::string(field_name);
 
-                        let prefix = quote!{ #fname: element.get_at_path(&[#ftype]) };
+                            let prefix = quote! { #fname: element.get_at_path(&[#ftype]) };
 
-                        match field_type {
-                            SimpleType::Boolean => {
-                                let ft = quote!{ #prefix.and_then(|e| e.as_boolean()) };
-                                if attributes.nillable {
-                                    quote!{ #ft.ok(),}
-                                } else {
-                                    quote!{ #ft?,}
+                            match field_type {
+                                SimpleType::Boolean => {
+                                    let ft = quote! { #prefix.and_then(|e| e.as_boolean()) };
+                                    if attributes.nillable {
+                                        quote! { #ft.ok(),}
+                                    } else {
+                                        quote! { #ft?,}
+                                    }
                                 }
-                            },
-                            SimpleType::String => {
-                                let ft = quote!{ #prefix.and_then(|e| e.get_text().map(|s| s.to_string())
+                                SimpleType::String => {
+                                    let ft = quote! { #prefix.and_then(|e| e.get_text().map(|s| s.to_string())
                                                      .ok_or(savon::rpser::xml::Error::Empty)
                                                      ) };
-                                if attributes.nillable {
-                                    quote!{ #ft.ok(),}
-                                } else {
-                                    quote!{ #ft?,}
+                                    if attributes.nillable {
+                                        quote! { #ft.ok(),}
+                                    } else {
+                                        quote! { #ft?,}
+                                    }
                                 }
-                            },
-                            SimpleType::Float => {
-                                let ft = quote!{ #prefix.map_err(savon::Error::from).and_then(|e| e.get_text()
+                                SimpleType::Float => {
+                                    let ft = quote! { #prefix.map_err(savon::Error::from).and_then(|e| e.get_text()
                                                      .ok_or(savon::rpser::xml::Error::Empty)
                                                      .map_err(savon::Error::from)
                                                      .and_then(|s| s.parse().map_err(savon::Error::from))) };
-                                if attributes.nillable {
-                                    quote!{ #ft.ok(),}
-                                } else {
-                                    quote!{ #ft?,}
+                                    if attributes.nillable {
+                                        quote! { #ft.ok(),}
+                                    } else {
+                                        quote! { #ft?,}
+                                    }
                                 }
-                            },
-                            SimpleType::Int => {
-                                let ft = quote!{ #prefix.and_then(|e| e.as_long()) };
-                                if attributes.nillable {
-                                    quote!{ #ft.ok(),}
-                                } else {
-                                    quote!{ #ft?,}
+                                SimpleType::Int => {
+                                    let ft = quote! { #prefix.and_then(|e| e.as_long()) };
+                                    if attributes.nillable {
+                                        quote! { #ft.ok(),}
+                                    } else {
+                                        quote! { #ft?,}
+                                    }
                                 }
-                            },
-                            SimpleType::DateTime => {
-                                let ft = quote!{
+                                SimpleType::DateTime => {
+                                    let ft = quote! {
                                     #prefix.and_then(|e| e.get_text()
                                                      .ok_or(savon::rpser::xml::Error::Empty)
                                                      ).map_err(savon::Error::from)
                                     .and_then(|s|
                                               s.parse::<savon::internal::chrono::DateTime<savon::internal::chrono::offset::Utc>>().map_err(savon::Error::from))
                                 };
-                                if attributes.nillable {
-                                    quote!{ #ft.ok(),}
-                                } else {
-                                    quote!{ #ft?,}
+                                    if attributes.nillable {
+                                        quote! { #ft.ok(),}
+                                    } else {
+                                        quote! { #ft?,}
+                                    }
                                 }
-                            },
-                            SimpleType::Complex(s) => {
-                                let complex_type = Ident::new(&s.to_camel(), Span::call_site());
+                                SimpleType::Complex(s) => {
+                                    let complex_type = Ident::new(&s.to_camel(), Span::call_site());
 
-                                match (attributes.min_occurs.as_ref(), attributes.max_occurs.as_ref()) {
-                                    (Some(_), Some(_)) => {
-                                        let ft = quote! {
+                                    match (attributes.min_occurs.as_ref(), attributes.max_occurs.as_ref()) {
+                                        (Some(_), Some(_)) => {
+                                            let ft = quote! {
                                             {
                                                 let mut v = vec![];
                                                 for elem in element.children.iter()
@@ -295,25 +301,25 @@ pub fn gen(wsdl: &Wsdl) -> Result<String, GenError> {
                                             },
                                         };
 
-                                        if attributes.nillable {
-                                            quote!{ #fname: Some(#ft) }
-                                        } else {
-                                            quote!{ #fname: #ft }
+                                            if attributes.nillable {
+                                                quote! { #fname: Some(#ft) }
+                                            } else {
+                                                quote! { #fname: #ft }
+                                            }
                                         }
-                                    },
-                                    _ => {
-                                        let ft = quote!{ #prefix.map_err(savon::Error::from).and_then(|e| #complex_type::from_element(&e).map_err(savon::Error::from)) };
-                                        if attributes.nillable {
-                                            quote!{ #ft.ok(),}
-                                        } else {
-                                            quote!{ #ft?,}
+                                        _ => {
+                                            let ft = quote! { #prefix.map_err(savon::Error::from).and_then(|e| #complex_type::from_element(&e).map_err(savon::Error::from)) };
+                                            if attributes.nillable {
+                                                quote! { #ft.ok(),}
+                                            } else {
+                                                quote! { #ft?,}
+                                            }
                                         }
                                     }
                                 }
-                            },
-                        }
-                    })
-                    .collect::<Vec<_>>();
+                            }
+                        })
+                        .collect::<Vec<_>>();
 
                     let deserialize_impl = if fields_deserialize_impl.is_empty() {
                         quote! {
@@ -336,7 +342,7 @@ pub fn gen(wsdl: &Wsdl) -> Result<String, GenError> {
                         }
                     };
 
-                quote! {
+                    quote! {
                     #[derive(Clone, Debug, Default)]
                     pub struct #type_name {
                         #(#fields)*
@@ -346,11 +352,17 @@ pub fn gen(wsdl: &Wsdl) -> Result<String, GenError> {
 
                     #deserialize_impl
                 }
-            } else {
-                panic!();
-            }
-        })
-        .collect::<Vec<_>>();
+                } else {
+                    panic!();
+                }
+            })
+            .collect::<Vec<_>>()
+    } else {
+        //原生输入输出类型
+        vec![quote! {
+            use savon::literal::*;
+        }]
+    };
 
     let messages = wsdl
         .messages
@@ -380,6 +392,7 @@ pub fn gen(wsdl: &Wsdl) -> Result<String, GenError> {
 
     let service_name = Ident::new(&wsdl.name, Span::call_site());
 
+    //
     let toks = quote! {
         pub mod types {
             use savon::internal::xmltree;
@@ -458,8 +471,10 @@ pub fn gen(wsdl: &Wsdl) -> Result<String, GenError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
     const WIKIPEDIA_WSDL: &[u8] = include_bytes!("../assets/wikipedia-example.wsdl");
     const EXAMPLE_WSDL: &[u8] = include_bytes!("../assets/example.wsdl");
+
     use crate::wsdl::*;
 
     #[test]

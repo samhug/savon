@@ -19,4 +19,6 @@ pub mod gen;
 pub mod http;
 pub mod rpser;
 pub mod wsdl;
+pub mod literal;
+
 pub use error::*;

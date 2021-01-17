@@ -92,123 +92,142 @@ pub fn parse(bytes: &[u8]) -> Result<Wsdl, WsdlError> {
 
     let elements = Element::parse(bytes)?;
     trace!("elements: {:#?}", elements);
-    let target_namespace = elements
-        .attributes
-        .get("targetNamespace")
-        .ok_or(WsdlError::AttributeNotFound("targetNamespace"))?
-        .to_string();
-
-    let types_el = elements
-        .get_child("types")
-        .ok_or(WsdlError::ElementNotFound("types"))?
-        .children
-        .iter()
-        .filter_map(|c| c.as_element())
-        .next()
-        .ok_or(WsdlError::Empty)?;
-
-    for elem in types_el.children.iter().filter_map(|c| c.as_element()) {
-        trace!("type: {:#?}", elem);
-        let name = elem
+    let namespace_el = elements.get_child("import");
+    let target_namespace = if (namespace_el.is_some()) {
+        namespace_el
+            .unwrap()
             .attributes
-            .get("name")
-            .ok_or(WsdlError::AttributeNotFound("name"))?;
+            .get("namespace")
+            .ok_or(WsdlError::AttributeNotFound("namespace"))?
+            .to_string()
+    } else {
+        elements
+            .attributes
+            .get("targetNamespace")
+            .ok_or(WsdlError::AttributeNotFound("targetNamespace"))?
+            .to_string()
+    };
+    let mut types_el = elements
+        .get_child("types")
+        .filter(|c| !c.children.is_empty());
+    if types_el.is_some() {
+        types_el = types_el
+            .unwrap()
+            .children
+            .iter()
+            .filter_map(|c| c.as_element())
+            .next();
+    }
+    if types_el.is_some() {
+        for elem in types_el
+            .unwrap()
+            .children
+            .iter()
+            .filter_map(|c| c.as_element())
+        {
+            trace!("type: {:#?}", elem);
+            let name = elem
+                .attributes
+                .get("name")
+                .ok_or(WsdlError::AttributeNotFound("name"))?;
 
-        // sometimes we have <element name="TypeName"><complexType>...</complexType></element>,
-        // sometimes we have <complexType name="TypeName">...</complexType>
-        //let current_child = elem.children.get(0).ok_or(WsdlError::Empty)?
-        //    .as_element().ok_or(WsdlError::NotAnElement)?;
+            // sometimes we have <element name="TypeName"><complexType>...</complexType></element>,
+            // sometimes we have <complexType name="TypeName">...</complexType>
+            //let current_child = elem.children.get(0).ok_or(WsdlError::Empty)?
+            //    .as_element().ok_or(WsdlError::NotAnElement)?;
 
-        let child = if elem.name == "complexType" {
-            elem
-        } else {
-            elem.children
-                .get(0)
-                .ok_or(WsdlError::Empty)?
-                .as_element()
-                .ok_or(WsdlError::NotAnElement)?
-        };
+            let child = if elem.name == "complexType" {
+                elem
+            } else {
+                elem.children
+                    .get(0)
+                    .ok_or(WsdlError::Empty)?
+                    .as_element()
+                    .ok_or(WsdlError::NotAnElement)?
+            };
 
-        if child.name == "complexType" {
-            let mut fields = HashMap::new();
-            for field in child
-                .children
-                .get(0)
-                .ok_or(WsdlError::Empty)?
-                .as_element()
-                .ok_or(WsdlError::NotAnElement)?
-                .children
-                .iter()
-                .filter_map(|c| c.as_element())
-            {
-                let field_name = field
-                    .attributes
-                    .get("name")
-                    .ok_or(WsdlError::AttributeNotFound("name"))?;
-                let field_type = field
-                    .attributes
-                    .get("type")
-                    .ok_or(WsdlError::AttributeNotFound("type"))?;
-                let mut nillable = match field.attributes.get("nillable").map(|s| s.as_str()) {
-                    Some("true") => true,
-                    Some("false") => false,
-                    _ => false,
-                };
+            if child.name == "complexType" {
+                let mut fields = HashMap::new();
+                for field in child
+                    .children
+                    .get(0)
+                    .ok_or(WsdlError::Empty)?
+                    .as_element()
+                    .ok_or(WsdlError::NotAnElement)?
+                    .children
+                    .iter()
+                    .filter_map(|c| c.as_element())
+                {
+                    let field_name = field
+                        .attributes
+                        .get("name")
+                        .ok_or(WsdlError::AttributeNotFound("name"))?;
+                    let field_type = field
+                        .attributes
+                        .get("type")
+                        .ok_or(WsdlError::AttributeNotFound("type"))?;
+                    let mut nillable = match field.attributes.get("nillable").map(|s| s.as_str()) {
+                        Some("true") => true,
+                        Some("false") => false,
+                        _ => false,
+                    };
 
-                let mut min_occurs = match field.attributes.get("minOccurs").map(|s| s.as_str()) {
-                    None => None,
-                    Some("unbounded") => Some(Occurence::Unbounded),
-                    Some(n) => Some(Occurence::Num(
-                        n.parse().expect("occurence should be a number"),
-                    )),
-                };
-                let mut max_occurs = match field.attributes.get("maxOccurs").map(|s| s.as_str()) {
-                    None => None,
-                    Some("unbounded") => Some(Occurence::Unbounded),
-                    Some(n) => Some(Occurence::Num(
-                        n.parse().expect("occurence should be a number"),
-                    )),
-                };
+                    let mut min_occurs = match field.attributes.get("minOccurs").map(|s| s.as_str())
+                    {
+                        None => None,
+                        Some("unbounded") => Some(Occurence::Unbounded),
+                        Some(n) => Some(Occurence::Num(
+                            n.parse().expect("occurence should be a number"),
+                        )),
+                    };
+                    let mut max_occurs = match field.attributes.get("maxOccurs").map(|s| s.as_str())
+                    {
+                        None => None,
+                        Some("unbounded") => Some(Occurence::Unbounded),
+                        Some(n) => Some(Occurence::Num(
+                            n.parse().expect("occurence should be a number"),
+                        )),
+                    };
 
-                match (&min_occurs, &max_occurs) {
-                    (Some(Occurence::Num(0)), Some(Occurence::Num(1))) => {
-                        nillable = true;
-                        min_occurs = None;
-                        max_occurs = None;
+                    match (&min_occurs, &max_occurs) {
+                        (Some(Occurence::Num(0)), Some(Occurence::Num(1))) => {
+                            nillable = true;
+                            min_occurs = None;
+                            max_occurs = None;
+                        }
+                        (Some(Occurence::Num(1)), Some(Occurence::Num(1))) => {
+                            nillable = false;
+                            min_occurs = None;
+                            max_occurs = None;
+                        }
+                        _ => {}
                     }
-                    (Some(Occurence::Num(1)), Some(Occurence::Num(1))) => {
-                        nillable = false;
-                        min_occurs = None;
-                        max_occurs = None;
-                    }
-                    _ => {}
+
+                    trace!("field {:?} -> {:?}", field_name, field_type);
+                    let type_attributes = TypeAttribute {
+                        nillable,
+                        min_occurs,
+                        max_occurs,
+                    };
+
+                    let simple_type = match split_namespace(field_type.as_str()) {
+                        "boolean" => SimpleType::Boolean,
+                        "string" => SimpleType::String,
+                        "int" => SimpleType::Int,
+                        "float" => SimpleType::Float,
+                        "dateTime" => SimpleType::DateTime,
+                        s => SimpleType::Complex(s.to_string()),
+                    };
+                    fields.insert(field_name.to_string(), (type_attributes, simple_type));
                 }
 
-                trace!("field {:?} -> {:?}", field_name, field_type);
-                let type_attributes = TypeAttribute {
-                    nillable,
-                    min_occurs,
-                    max_occurs,
-                };
-
-                let simple_type = match split_namespace(field_type.as_str()) {
-                    "boolean" => SimpleType::Boolean,
-                    "string" => SimpleType::String,
-                    "int" => SimpleType::Int,
-                    "float" => SimpleType::Float,
-                    "dateTime" => SimpleType::DateTime,
-                    s => SimpleType::Complex(s.to_string()),
-                };
-                fields.insert(field_name.to_string(), (type_attributes, simple_type));
+                types.insert(name.to_string(), Type::Complex(ComplexType { fields }));
+            } else {
+                trace!("child {:#?}", child);
+                unimplemented!("not a complex type");
             }
-
-            types.insert(name.to_string(), Type::Complex(ComplexType { fields }));
-        } else {
-            trace!("child {:#?}", child);
-            unimplemented!("not a complex type");
         }
     }
-
     for message in elements
         .children
         .iter()
@@ -248,58 +267,112 @@ pub fn parse(bytes: &[u8]) -> Result<Wsdl, WsdlError> {
         );
     }
 
-    let port_type_el = elements
-        .get_child("portType")
-        .ok_or(WsdlError::ElementNotFound("portType"))?;
+    let port_type_el = elements.get_child("portType");
 
-    for operation in port_type_el.children.iter().filter_map(|c| c.as_element()) {
-        let operation_name = operation
-            .attributes
-            .get("name")
-            .ok_or(WsdlError::AttributeNotFound("name"))?;
-
-        let mut input = None;
-        let mut output = None;
-        let mut faults = None;
-        for child in operation
+    if port_type_el.is_some() {
+        for operation in port_type_el
+            .unwrap()
             .children
             .iter()
             .filter_map(|c| c.as_element())
-            .filter(|c| c.attributes.get("message").is_some())
         {
-            let message = split_namespace(
-                child
-                    .attributes
-                    .get("message")
-                    .ok_or(WsdlError::AttributeNotFound("message"))?,
-            );
-            // FIXME: not testing for unicity
-            match child.name.as_str() {
-                "input" => input = Some(message.to_string()),
-                "output" => output = Some(message.to_string()),
-                "fault" => {
-                    if faults.is_none() {
-                        faults = Some(Vec::new());
+            let operation_name = operation
+                .attributes
+                .get("name")
+                .ok_or(WsdlError::AttributeNotFound("name"))?;
+
+            let mut input = None;
+            let mut output = None;
+            let mut faults = None;
+            for child in operation
+                .children
+                .iter()
+                .filter_map(|c| c.as_element())
+                .filter(|c| c.attributes.get("message").is_some())
+            {
+                let message = split_namespace(
+                    child
+                        .attributes
+                        .get("message")
+                        .ok_or(WsdlError::AttributeNotFound("message"))?,
+                );
+                // FIXME: not testing for unicity
+                match child.name.as_str() {
+                    "input" => input = Some(message.to_string()),
+                    "output" => output = Some(message.to_string()),
+                    "fault" => {
+                        if faults.is_none() {
+                            faults = Some(Vec::new());
+                        }
+                        if let Some(v) = faults.as_mut() {
+                            v.push(message.to_string());
+                        }
                     }
-                    if let Some(v) = faults.as_mut() {
-                        v.push(message.to_string());
-                    }
+                    _ => return Err(WsdlError::ElementNotFound("operation member")),
                 }
-                _ => return Err(WsdlError::ElementNotFound("operation member")),
             }
+
+            operations.insert(
+                operation_name.to_string(),
+                Operation {
+                    name: operation_name.to_string(),
+                    input,
+                    output,
+                    faults,
+                },
+            );
         }
+    } else {
+        let bind_operator = elements
+            .get_child("binding")
+            .ok_or(WsdlError::ElementNotFound("binding"))?;
+        for operation in bind_operator
+            .children
+            .iter()
+            .filter_map(|c| c.as_element())
+            .filter(|c| c.name.eq("operation"))
+        {
+            let operation_name = operation
+                .attributes
+                .get("name")
+                .ok_or(WsdlError::AttributeNotFound("name"))?;
 
-        operations.insert(
-            operation_name.to_string(),
-            Operation {
-                name: operation_name.to_string(),
-                input,
-                output,
-                faults,
-            },
-        );
+            let mut input = None;
+            let mut output = None;
+            let mut faults = None;
+            for child in operation
+                .children
+                .iter()
+                .filter_map(|c| c.as_element())
+                .filter(|c| !c.children.is_empty())
+            {
+                // FIXME: not testing for unicity
+                match child.name.as_str() {
+                    "input" => input = Some(String::from("LiteralRequest")),
+                    "output" => output = Some(String::from("LiteralResponse")),
+                    "fault" => {
+                        if faults.is_none() {
+                            faults = Some(Vec::new());
+                        }
+                        if let Some(v) = faults.as_mut() {
+                            v.push(String::from("literal"));
+                        }
+                    }
+                    _ => return Err(WsdlError::ElementNotFound("operation member")),
+                }
+            }
+
+            operations.insert(
+                operation_name.to_string(),
+                Operation {
+                    name: operation_name.to_string(),
+                    input,
+                    output,
+                    faults,
+                },
+            );
+        }
     }
-
     //FIXME: ignoring bindings for now
     //FIXME: ignoring service for now
     let service_name = elements
@@ -326,6 +399,7 @@ pub fn parse(bytes: &[u8]) -> Result<Wsdl, WsdlError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
     const WIKIPEDIA_WSDL: &[u8] = include_bytes!("../assets/wikipedia-example.wsdl");
     const EXAMPLE_WSDL: &[u8] = include_bytes!("../assets/example.wsdl");
 
