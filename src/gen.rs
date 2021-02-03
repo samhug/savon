@@ -368,8 +368,8 @@ pub fn gen(wsdl: &Wsdl) -> Result<String, GenError> {
         .messages
         .iter()
         .map(|(message_name, message)| {
-            let mname = Ident::new(&message_name, Span::call_site());
-            let iname = Ident::new(&message.part_element, Span::call_site());
+            let mname = Ident::new(&message_name.to_camel(), Span::call_site());
+            let iname = Ident::new(&message.part_element.to_camel(), Span::call_site());
 
             quote! {
                 #[derive(Clone, Debug, Default)]
