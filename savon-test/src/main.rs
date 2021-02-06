@@ -14,6 +14,7 @@ mod soap1 {
 #[tokio::main]
 async fn main() -> Result<(), savon::Error> {
     pretty_env_logger::init();
+    trace!("OUT_DIR:{}", env!("OUT_DIR"));
     let base_url = "http://webservices.oorsprong.org/websamples.countryinfo/CountryInfoService.wso";
     info!("Hello, world!");
 

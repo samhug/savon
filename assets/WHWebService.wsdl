@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<wsdl:definitions
+        xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"
+        xmlns:xs="http://www.w3.org/2001/XMLSchema"
+        name="TISLibrary"
+        xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/"
+        xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/"
+        xmlns:mime="http://schemas.xmlsoap.org/wsdl/mime/"
+        targetNamespace="http://tempuri.org/"
+        xmlns:tns="http://tempuri.org/"
+>
+    <wsdl:types>
+        <xs:schema targetNamespace="http://tempuri.org/" elementFormDefault="qualified">
+            <xs:element name="WHWebService___WHDCIF">
+                <xs:complexType>
+                    <xs:sequence>
+                        <xs:element name="params" minOccurs="1" maxOccurs="1" type="xs:string" />
+                    </xs:sequence>
+                </xs:complexType>
+            </xs:element>
+            <xs:element name="WHWebService___WHDCIFResponse">
+                <xs:complexType>
+                    <xs:sequence>
+                        <xs:element name="Result" minOccurs="1" maxOccurs="1" type="xs:string" />
+                    </xs:sequence>
+                </xs:complexType>
+            </xs:element>
+        </xs:schema>
+    </wsdl:types>
+    <wsdl:message name="WHWebService___WHDCIFRequest">
+        <wsdl:part name="parameters" element="tns:WHWebService___WHDCIF" />
+    </wsdl:message>
+    <wsdl:message name="WHWebService___WHDCIFResponse">
+        <wsdl:part name="parameters" element="tns:WHWebService___WHDCIFResponse" />
+    </wsdl:message>
+    <wsdl:portType name="WHWebService">
+        <wsdl:operation name="WHDCIF">
+            <wsdl:input message="tns:WHWebService___WHDCIFRequest" />
+            <wsdl:output message="tns:WHWebService___WHDCIFResponse" />
+        </wsdl:operation>
+    </wsdl:portType>
+    <wsdl:binding name="WHWebServiceBinding" type="tns:WHWebService">
+        <soap:binding transport="http://schemas.xmlsoap.org/soap/http" />
+        <wsdl:operation name="WHDCIF">
+            <soap:operation soapAction="urn:TISLibrary-WHWebService#WHDCIF" style="document" />
+            <wsdl:input>
+                <soap:body use="literal" />
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal" />
+            </wsdl:output>
+        </wsdl:operation>
+    </wsdl:binding>
+    <wsdl:service name="WHWebService">
+        <wsdl:port name="WHWebServicePort" binding="tns:WHWebServiceBinding">
+            <soap:address location="http://127.0.0.1:1234/soap?service=WHWebService" />
+        </wsdl:port>
+    </wsdl:service>
+</wsdl:definitions>
