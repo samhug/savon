@@ -161,7 +161,7 @@ pub fn gen(wsdl: &Wsdl) -> Result<String, GenError> {
                     .fields
                     .iter()
                     .map(|(field_name, (attributes, field_type))| {
-                        let fname = Ident::new(&field_name.to_snake(), Span::call_site());
+                        let fname = Ident::new(&field_name.to_lowercase(), Span::call_site());
                         //FIXME: handle more complex types
                         /*let ft = match field_type {
                             SimpleType::Boolean => Ident::new("bool", Span::call_site()),
