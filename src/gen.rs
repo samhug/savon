@@ -59,8 +59,8 @@ pub fn gen(wsdl: &Wsdl) -> Result<String, GenError> {
     let target_namespace = Literal::string(&wsdl.target_namespace);
 
     let operations = wsdl.operations.iter().map(|(name, operation)| {
-        let op_name = Ident::new(&name.to_snake(), Span::call_site());
-        let input_name = Ident::new(&operation.input.as_ref().unwrap().to_snake(), Span::call_site());
+        let op_name = Ident::new(&name.to_lowercase(), Span::call_site());
+        let input_name = Ident::new(&operation.input.as_ref().unwrap().to_lowercase(), Span::call_site());
         let input_type = Ident::new(&operation.input.as_ref().unwrap().to_camel(), Span::call_site());
         let full_input_type = quote!{ messages::#input_type };
 
@@ -126,7 +126,7 @@ pub fn gen(wsdl: &Wsdl) -> Result<String, GenError> {
                     .fields
                     .iter()
                     .map(|(field_name, (attributes, field_type))| {
-                        let fname = Ident::new(&field_name.to_snake(), Span::call_site());
+                        let fname = Ident::new(&field_name.to_lowercase(), Span::call_site());
                         let ft = match field_type {
                             SimpleType::Boolean => quote!{ bool }, //Ident::new("bool", Span::call_site()),
                             SimpleType::String => quote!{ String },//Ident::new("String", Span::call_site()),
