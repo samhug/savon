@@ -149,26 +149,41 @@ pub fn parse(bytes: &[u8]) -> Result<Wsdl, WsdlError> {
                     .attributes
                     .get("type")
                     .ok_or(WsdlError::AttributeNotFound("type"))?;
-                let nillable = match field.attributes.get("nillable").map(|s| s.as_str()) {
+                let mut nillable = match field.attributes.get("nillable").map(|s| s.as_str()) {
                     Some("true") => true,
                     Some("false") => false,
                     _ => false,
                 };
 
-                let min_occurs = match field.attributes.get("minOccurs").map(|s| s.as_str()) {
+                let mut min_occurs = match field.attributes.get("minOccurs").map(|s| s.as_str()) {
                     None => None,
                     Some("unbounded") => Some(Occurence::Unbounded),
                     Some(n) => Some(Occurence::Num(
                         n.parse().expect("occurence should be a number"),
                     )),
                 };
-                let max_occurs = match field.attributes.get("maxOccurs").map(|s| s.as_str()) {
+                let mut max_occurs = match field.attributes.get("maxOccurs").map(|s| s.as_str()) {
                     None => None,
                     Some("unbounded") => Some(Occurence::Unbounded),
                     Some(n) => Some(Occurence::Num(
                         n.parse().expect("occurence should be a number"),
                     )),
                 };
+
+                match (min_occurs, max_occurs) {
+                    (Some(Occurence::Num(0)), Some(Occurence::Num(1))) => {
+                        nillable = true;
+                        min_occurs = None;
+                        max_occurs = None;
+                    }
+                    (Some(Occurence::Num(1)), Some(Occurence::Num(1))) => {
+                        nillable = false;
+                        min_occurs = None;
+                        max_occurs = None;
+                    }
+                    _ => {}
+                }
+
                 trace!("field {:?} -> {:?}", field_name, field_type);
                 let type_attributes = TypeAttribute {
                     nillable,
