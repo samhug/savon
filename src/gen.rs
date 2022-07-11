@@ -1,4 +1,4 @@
-use crate::wsdl::{parse, SimpleType, Type, Wsdl};
+use crate::wsdl::{parse, Occurence, SimpleType, Type, Wsdl};
 use case::CaseExt;
 use proc_macro2::{Ident, Literal, Span, TokenStream};
 use std::{fs::File, io::Write};
@@ -140,6 +140,8 @@ pub fn gen(wsdl: &Wsdl) -> Result<String, GenError> {
                         };
 
                         let ft = match (attributes.min_occurs.as_ref(), attributes.max_occurs.as_ref()) {
+                          (Some(Occurence::Num(0)), Some(Occurence::Num(1))) => quote! { Option<#ft> },
+                          (Some(Occurence::Num(1)), Some(Occurence::Num(1))) => quote!{ #ft },
                           (Some(_), Some(_)) => quote! { Vec<#ft> },
                           _ => quote! { #ft }
                         };
@@ -220,7 +222,7 @@ pub fn gen(wsdl: &Wsdl) -> Result<String, GenError> {
                     .fields
                     .iter()
                     .map(|(field_name, (attributes, field_type))| {
-                        let fname = Ident::new(&field_name.to_snake(), Span::call_site());
+                        let fname = Ident::new(&field_name.to_lowercase(), Span::call_site());
                         let ftype = Literal::string(field_name);
 
                         let prefix = quote!{ #fname: element.get_at_path(&[#ftype]) };
