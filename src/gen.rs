@@ -1,7 +1,7 @@
-use crate::wsdl::{parse, Occurence, SimpleType, Type, Wsdl};
+use crate::wsdl::{parse, Message, Occurence, Operation, SimpleType, Type, Wsdl};
 use case::CaseExt;
 use proc_macro2::{Ident, Literal, Span, TokenStream};
-use std::{fs::File, io::Write};
+use std::{collections::HashMap, fs::File, io::Write};
 
 pub trait ToElements {
     fn to_elements(&self) -> Vec<xmltree::Element>;
@@ -58,10 +58,11 @@ pub fn gen_write(path: &str, out: &str) -> Result<(), ()> {
     Ok(())
 }
 
-pub fn gen(wsdl: &Wsdl) -> Result<String, GenError> {
-    let target_namespace = Literal::string(&wsdl.target_namespace);
-
-    let operations = wsdl.operations.iter().map(|(name, operation)| {
+fn gen_operations(
+    operations: &HashMap<String, Operation>,
+    target_namespace: &Literal,
+) -> Result<Vec<TokenStream>, GenError> {
+    Ok(operations.iter().map(|(name, operation)| {
         let op_name = Ident::new(&name.to_snake(), Span::call_site());
         let input_name = Ident::new(&operation.input.as_ref().unwrap().to_snake(), Span::call_site());
         let input_type = Ident::new(&operation.input.as_ref().unwrap().to_camel(), Span::call_site());
@@ -116,12 +117,11 @@ pub fn gen(wsdl: &Wsdl) -> Result<String, GenError> {
                 }
             }
         }
-    }).collect::<Vec<_>>();
+    }).collect::<Vec<_>>())
+}
 
-    let types = if !wsdl.types.is_empty() {
-        wsdl
-            .types
-            .iter()
+fn gen_types(types: &HashMap<String, Type>) -> Result<Vec<TokenStream>, GenError> {
+    Ok(types.iter()
             .map(|(name, t)| {
                 if let Type::Complex(c) = t {
                     let type_name = Ident::new(&name.to_camel(), Span::call_site());
@@ -357,14 +357,16 @@ pub fn gen(wsdl: &Wsdl) -> Result<String, GenError> {
                     panic!();
                 }
             })
-            .collect::<Vec<_>>()
-    } else {
-        vec![quote! {}]
-    };
-    let messages = wsdl
-        .messages
+            .collect::<Vec<_>>())
+}
+
+fn gen_messages(
+    messages: &HashMap<String, Message>,
+    types: &HashMap<String, Type>,
+) -> Result<Vec<TokenStream>, GenError> {
+    Ok(messages
         .iter()
-        .filter(|&(name, _)| !wsdl.types.contains_key(name))
+        .filter(|&(name, _)| !types.contains_key(name))
         .map(|(message_name, message)| {
             let mname = Ident::new(&message_name.to_camel(), Span::call_site());
             let iname = Ident::new(&message.part_element.to_camel(), Span::call_site());
@@ -386,12 +388,53 @@ pub fn gen(wsdl: &Wsdl) -> Result<String, GenError> {
                 }
             }
         })
-        .collect::<Vec<_>>();
+        .collect::<Vec<_>>())
+}
+
+fn gen_operation_faults(
+    operations: &HashMap<String, Operation>,
+) -> Result<Vec<TokenStream>, GenError> {
+    Ok(operations
+        .iter()
+        .filter(|(_, op)| op.faults.is_some())
+        .map(|(name, operation)| {
+            let op_error = Ident::new(&format!("{}Error", name), Span::call_site());
+
+            let faults = operation
+                .faults
+                .as_ref()
+                .unwrap()
+                .iter()
+                .map(|fault| {
+                    let fault_name = Ident::new(fault, Span::call_site());
+
+                    quote! {
+                          #fault_name(#fault_name),
+                    }
+                })
+                .collect::<Vec<_>>();
+
+            quote! {
+                #[derive(Clone, Debug, Default)]
+                pub enum #op_error {
+                    #(#faults)*
+                }
+            }
+        })
+        .collect::<Vec<_>>())
+}
+
+pub fn gen(wsdl: &Wsdl) -> Result<String, GenError> {
+    let target_namespace = Literal::string(&wsdl.target_namespace);
+
+    let operations = gen_operations(&wsdl.operations, &target_namespace)?;
+    let types = gen_types(&wsdl.types)?;
+    let messages = gen_messages(&wsdl.messages, &wsdl.types)?;
+    let operation_faults = gen_operation_faults(&wsdl.operations)?;
 
     let service_name = Ident::new(&wsdl.name, Span::call_site());
 
-    //
-    let toks = quote! {
+    let mut tokens = quote! {
         pub mod types {
             #[allow(unused_imports)]
             use savon::{
@@ -440,40 +483,9 @@ pub fn gen(wsdl: &Wsdl) -> Result<String, GenError> {
         }
     };
 
-    let operation_faults = wsdl
-        .operations
-        .iter()
-        .filter(|(_, op)| op.faults.is_some())
-        .map(|(name, operation)| {
-            let op_error = Ident::new(&format!("{}Error", name), Span::call_site());
+    tokens.extend(operation_faults);
 
-            let faults = operation
-                .faults
-                .as_ref()
-                .unwrap()
-                .iter()
-                .map(|fault| {
-                    let fault_name = Ident::new(fault, Span::call_site());
-
-                    quote! {
-                          #fault_name(#fault_name),
-                    }
-                })
-                .collect::<Vec<_>>();
-
-            quote! {
-                #[derive(Clone, Debug, Default)]
-                pub enum #op_error {
-                    #(#faults)*
-                }
-            }
-        })
-        .collect::<Vec<_>>();
-
-    let mut stream: TokenStream = toks;
-    stream.extend(operation_faults);
-
-    Ok(stream.to_string())
+    Ok(tokens.to_string())
 }
 
 #[cfg(test)]
