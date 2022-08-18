@@ -407,6 +407,7 @@ pub fn gen(wsdl: &Wsdl) -> Result<String, GenError> {
         pub mod messages {
             use savon::internal::xmltree;
             use super::types;
+            pub use savon::literal::{LiteralRequest, LiteralResponse};
 
             #(#messages)*
         }
