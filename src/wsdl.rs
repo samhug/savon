@@ -119,11 +119,7 @@ pub fn parse(bytes: &[u8]) -> Result<Wsdl, WsdlError> {
             .next();
     }
     if let Some(types_el) = types_el {
-        for elem in types_el
-            .children
-            .iter()
-            .filter_map(|c| c.as_element())
-        {
+        for elem in types_el.children.iter().filter_map(|c| c.as_element()) {
             trace!("type: {:#?}", elem);
             let name = elem
                 .attributes
@@ -269,11 +265,7 @@ pub fn parse(bytes: &[u8]) -> Result<Wsdl, WsdlError> {
     let port_type_el = elements.get_child("portType");
 
     if let Some(port_type_el) = port_type_el {
-        for operation in port_type_el
-            .children
-            .iter()
-            .filter_map(|c| c.as_element())
-        {
+        for operation in port_type_el.children.iter().filter_map(|c| c.as_element()) {
             let operation_name = operation
                 .attributes
                 .get("name")

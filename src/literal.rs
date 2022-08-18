@@ -1,10 +1,10 @@
 use crate::rpser::xml::BuildElement;
-use crate::{gen, Error, rpser};
+use crate::{gen, rpser, Error};
 
 //请参参数
 #[derive(Clone, Debug, Default)]
 pub struct LiteralRequest {
-    pub args: Option<Vec<String>>
+    pub args: Option<Vec<String>>,
 }
 
 impl gen::ToElements for LiteralRequest {
@@ -22,13 +22,17 @@ impl gen::ToElements for LiteralRequest {
 //响应结果
 #[derive(Clone, Debug, Default)]
 pub struct LiteralResponse {
-    pub result: String
+    pub result: String,
 }
 
 impl gen::FromElement for LiteralResponse {
     fn from_element(element: &xmltree::Element) -> Result<Self, Error> {
         Ok(LiteralResponse {
-            result: element.get_at_path(&["return"]).and_then(|e| e.get_text().map(|s| s.to_string()).ok_or(rpser::xml::Error::Empty))?
+            result: element.get_at_path(&["return"]).and_then(|e| {
+                e.get_text()
+                    .map(|s| s.to_string())
+                    .ok_or(rpser::xml::Error::Empty)
+            })?,
         })
     }
 }

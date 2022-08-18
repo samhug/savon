@@ -17,8 +17,8 @@ pub mod internal {
 mod error;
 pub mod gen;
 pub mod http;
+pub mod literal;
 pub mod rpser;
 pub mod wsdl;
-pub mod literal;
 
 pub use error::*;
