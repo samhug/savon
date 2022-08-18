@@ -22,15 +22,11 @@ impl<T: ToElements> ToElements for Option<T> {
     }
 }
 
-/*impl<T: ToElements> for Vec<T> {
+impl<T: ToElements> ToElements for Vec<T> {
     fn to_elements(&self) -> Vec<xmltree::Element> {
-
-        match self {
-            Some(e) => e.to_elements(),
-            None => vec![],
-        }
+        self.iter().flat_map(ToElements::to_elements).collect()
     }
-}*/
+}
 
 #[derive(Debug)]
 pub enum GenError {
