@@ -42,7 +42,7 @@ impl From<std::io::Error> for GenError {
 pub fn gen_write(path: &str, out: &str) -> Result<(), ()> {
     let file_name = std::path::Path::new(path).file_name().unwrap().to_str();
     let out_path = match file_name {
-        Some(n) => match n.rfind(".") {
+        Some(n) => match n.rfind('.') {
             Some(index) => format!("{}/{}.rs", out, &n[..index].to_snake()),
             None => format!("{}/{}.rs", out, n.to_snake()),
         },
@@ -67,7 +67,7 @@ pub fn gen(wsdl: &Wsdl) -> Result<String, GenError> {
         let input_type = Ident::new(&operation.input.as_ref().unwrap().to_camel(), Span::call_site());
         let full_input_type = quote!{ messages::#input_type };
 
-        let op_str = Literal::string(&name);
+        let op_str = Literal::string(name);
 
         match (operation.output.as_ref(), operation.faults.as_ref()) {
             (None, None) => {
@@ -89,7 +89,7 @@ pub fn gen(wsdl: &Wsdl) -> Result<String, GenError> {
                 }
             }
             (Some(out), Some(_)) => {
-                let output_type = Ident::new(&out, Span::call_site());
+                let output_type = Ident::new(out, Span::call_site());
                 let full_output_type = quote!{ messages::#output_type };
                 let error_type = Ident::new(&format!("{}Error", name.to_camel()), Span::call_site());
                 let full_error_type = quote!{ messages::#error_type };
@@ -453,7 +453,7 @@ pub fn gen(wsdl: &Wsdl) -> Result<String, GenError> {
                 .unwrap()
                 .iter()
                 .map(|fault| {
-                    let fault_name = Ident::new(&fault, Span::call_site());
+                    let fault_name = Ident::new(fault, Span::call_site());
 
                     quote! {
                           #fault_name(#fault_name),
