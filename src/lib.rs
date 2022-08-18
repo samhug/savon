@@ -22,3 +22,10 @@ pub mod rpser;
 pub mod wsdl;
 
 pub use error::*;
+
+// Initialize logger for tests so we can set RUST_LOG for debugging
+#[cfg(test)]
+#[ctor::ctor]
+fn init() {
+    env_logger::init();
+}

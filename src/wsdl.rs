@@ -85,39 +85,14 @@ fn split_namespace(s: &str) -> &str {
     }
 }
 
-pub fn parse(bytes: &[u8]) -> Result<Wsdl, WsdlError> {
+pub fn parse_types(root_el: &Element) -> Result<HashMap<String, Type>, WsdlError> {
     let mut types = HashMap::new();
-    let mut messages = HashMap::new();
-    let mut operations = HashMap::new();
 
-    let elements = Element::parse(bytes)?;
-    trace!("elements: {:#?}", elements);
-    let namespace_el = elements.get_child("import");
-    let target_namespace = if namespace_el.is_some() {
-        namespace_el
-            .unwrap()
-            .attributes
-            .get("namespace")
-            .ok_or(WsdlError::AttributeNotFound("namespace"))?
-            .to_string()
-    } else {
-        elements
-            .attributes
-            .get("targetNamespace")
-            .ok_or(WsdlError::AttributeNotFound("targetNamespace"))?
-            .to_string()
-    };
-    let mut types_el = elements
+    let types_el = root_el
         .get_child("types")
-        .filter(|c| !c.children.is_empty());
-    if types_el.is_some() {
-        types_el = types_el
-            .unwrap()
-            .children
-            .iter()
-            .filter_map(|c| c.as_element())
-            .next();
-    }
+        .filter(|c| !c.children.is_empty())
+        .and_then(|e| e.children.iter().filter_map(|c| c.as_element()).next());
+
     if let Some(types_el) = types_el {
         for elem in types_el.children.iter().filter_map(|c| c.as_element()) {
             trace!("type: {:#?}", elem);
@@ -142,17 +117,45 @@ pub fn parse(bytes: &[u8]) -> Result<Wsdl, WsdlError> {
             };
 
             if child.name == "complexType" {
-                let mut fields = HashMap::new();
-                for field in child
+                let is_abstract = child
+                    .attributes
+                    .get("abstract")
+                    .map(|v| v == "true")
+                    .unwrap_or(false);
+                if is_abstract {
+                    types.insert(
+                        name.to_string(),
+                        Type::Complex(ComplexType {
+                            fields: HashMap::new(),
+                        }),
+                    );
+                    continue;
+                }
+
+                let field_container_el = child
                     .children
-                    .get(0)
-                    .ok_or(WsdlError::Empty)?
-                    .as_element()
-                    .ok_or(WsdlError::NotAnElement)?
+                    .iter()
+                    .filter_map(|c| c.as_element())
+                    .find(|e| e.name != "annotation")
+                    .ok_or(WsdlError::Empty)?;
+
+                if field_container_el.name == "complexContent" {
+                    types.insert(
+                        name.to_string(),
+                        Type::Complex(ComplexType {
+                            fields: HashMap::new(),
+                        }),
+                    );
+                    continue;
+                }
+
+                let mut fields = HashMap::new();
+                for field in field_container_el
                     .children
                     .iter()
                     .filter_map(|c| c.as_element())
                 {
+                    trace!("field: {:#?}", field);
                     let field_name = field
                         .attributes
                         .get("name")
@@ -223,7 +226,12 @@ pub fn parse(bytes: &[u8]) -> Result<Wsdl, WsdlError> {
             }
         }
     }
-    for message in elements
+    Ok(types)
+}
+
+pub fn parse_messages(root_el: &Element) -> Result<HashMap<String, Message>, WsdlError> {
+    let mut messages = HashMap::new();
+    for message in root_el
         .children
         .iter()
         .filter_map(|c| c.as_element())
@@ -261,11 +269,19 @@ pub fn parse(bytes: &[u8]) -> Result<Wsdl, WsdlError> {
             },
         );
     }
+    Ok(messages)
+}
 
-    let port_type_el = elements.get_child("portType");
-
-    if let Some(port_type_el) = port_type_el {
-        for operation in port_type_el.children.iter().filter_map(|c| c.as_element()) {
+pub fn parse_operations(root_el: &Element) -> Result<HashMap<String, Operation>, WsdlError> {
+    let mut operations = HashMap::new();
+    if let Some(port_type_el) = root_el.get_child("portType") {
+        for operation in port_type_el
+            .children
+            .iter()
+            .filter_map(|c| c.as_element())
+            .filter(|e| e.name == "operation")
+        {
+            trace!("operation: {:#?}", operation);
             let operation_name = operation
                 .attributes
                 .get("name")
@@ -313,7 +329,7 @@ pub fn parse(bytes: &[u8]) -> Result<Wsdl, WsdlError> {
             );
         }
     } else {
-        let bind_operator = elements
+        let bind_operator = root_el
             .get_child("binding")
             .ok_or(WsdlError::ElementNotFound("binding"))?;
         for operation in bind_operator
@@ -363,14 +379,39 @@ pub fn parse(bytes: &[u8]) -> Result<Wsdl, WsdlError> {
             );
         }
     }
-    //FIXME: ignoring bindings for now
-    //FIXME: ignoring service for now
+    Ok(operations)
+}
+
+pub fn parse(bytes: &[u8]) -> Result<Wsdl, WsdlError> {
+    let elements = Element::parse(bytes)?;
+    // trace!("elements: {:#?}", elements);
+
+    let target_namespace = match elements.get_child("import") {
+        Some(namespace_el) => namespace_el
+            .attributes
+            .get("namespace")
+            .ok_or(WsdlError::AttributeNotFound("namespace"))?
+            .to_string(),
+        None => elements
+            .attributes
+            .get("targetNamespace")
+            .ok_or(WsdlError::AttributeNotFound("targetNamespace"))?
+            .to_string(),
+    };
+
     let service_name = elements
         .get_child("service")
         .ok_or(WsdlError::ElementNotFound("service"))?
         .attributes
         .get("name")
         .ok_or(WsdlError::AttributeNotFound("name"))?;
+
+    let types = parse_types(&elements)?;
+    let messages = parse_messages(&elements)?;
+    let operations = parse_operations(&elements)?;
+
+    //FIXME: ignoring bindings for now
+    //FIXME: ignoring service for now
 
     debug!("service name: {}", service_name);
     debug!("parsed types: {:#?}", types);
@@ -390,13 +431,23 @@ pub fn parse(bytes: &[u8]) -> Result<Wsdl, WsdlError> {
 mod tests {
     use super::*;
 
-    const WIKIPEDIA_WSDL: &[u8] = include_bytes!("../assets/wikipedia-example.wsdl");
-    const EXAMPLE_WSDL: &[u8] = include_bytes!("../assets/example.wsdl");
+    fn parse_test(bytes: &[u8]) {
+        let wsdl = parse(bytes).unwrap();
+        debug!("wsdl: {:#?}", wsdl);
+    }
 
     #[test]
     fn parse_example() {
-        let res = parse(EXAMPLE_WSDL);
-        println!("res: {:?}", res);
-        res.unwrap();
+        parse_test(include_bytes!("../assets/example.wsdl"));
+    }
+
+    #[test]
+    fn parse_wikipedia() {
+        parse_test(include_bytes!("../assets/wikipedia-example.wsdl"));
+    }
+
+    #[test]
+    fn parse_whwebservice() {
+        parse_test(include_bytes!("../assets/WHWebService.wsdl"));
     }
 }
