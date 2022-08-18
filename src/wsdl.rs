@@ -93,7 +93,7 @@ pub fn parse(bytes: &[u8]) -> Result<Wsdl, WsdlError> {
     let elements = Element::parse(bytes)?;
     trace!("elements: {:#?}", elements);
     let namespace_el = elements.get_child("import");
-    let target_namespace = if (namespace_el.is_some()) {
+    let target_namespace = if namespace_el.is_some() {
         namespace_el
             .unwrap()
             .attributes
@@ -118,9 +118,8 @@ pub fn parse(bytes: &[u8]) -> Result<Wsdl, WsdlError> {
             .filter_map(|c| c.as_element())
             .next();
     }
-    if types_el.is_some() {
+    if let Some(types_el) = types_el {
         for elem in types_el
-            .unwrap()
             .children
             .iter()
             .filter_map(|c| c.as_element())
@@ -269,9 +268,8 @@ pub fn parse(bytes: &[u8]) -> Result<Wsdl, WsdlError> {
 
     let port_type_el = elements.get_child("portType");
 
-    if port_type_el.is_some() {
+    if let Some(port_type_el) = port_type_el {
         for operation in port_type_el
-            .unwrap()
             .children
             .iter()
             .filter_map(|c| c.as_element())

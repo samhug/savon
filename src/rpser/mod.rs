@@ -96,7 +96,7 @@ impl fmt::Display for Method {
 }
 
 /// Method parsing / response error.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum RpcError {
     Fault {
         fault_code: String,

@@ -359,10 +359,7 @@ pub fn gen(wsdl: &Wsdl) -> Result<String, GenError> {
             })
             .collect::<Vec<_>>()
     } else {
-        //原生输入输出类型
-        vec![quote! {
-            use savon::literal::*;
-        }]
+        vec![quote! {}]
     };
     let messages = wsdl
         .messages
@@ -396,18 +393,27 @@ pub fn gen(wsdl: &Wsdl) -> Result<String, GenError> {
     //
     let toks = quote! {
         pub mod types {
-            use savon::internal::xmltree;
-            use savon::rpser::xml::*;
             #[allow(unused_imports)]
-            use savon::internal::chrono::{DateTime, offset::Utc};
+            use savon::{
+                internal::{
+                    chrono::{DateTime, offset::Utc},
+                    xmltree,
+                },
+                rpser::xml::*,
+            };
 
             #(#types)*
         }
 
         pub mod messages {
-            use savon::internal::xmltree;
-            use super::types;
-            pub use savon::literal::{LiteralRequest, LiteralResponse};
+            #[allow(unused_imports)]
+            use {
+                savon::internal::xmltree,
+                super::types,
+            };
+
+            #[allow(unused_imports)]
+            pub(crate) use savon::literal::{LiteralRequest, LiteralResponse};
 
             #(#messages)*
         }

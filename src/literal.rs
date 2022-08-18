@@ -10,12 +10,12 @@ pub struct LiteralRequest {
 impl gen::ToElements for LiteralRequest {
     fn to_elements(&self) -> Vec<xmltree::Element> {
         let mut v = vec![];
-        if (self.args.as_ref().is_some()) {
+        if self.args.as_ref().is_some() {
             for (i, n) in self.args.as_ref().unwrap().iter().enumerate() {
                 v.push(xmltree::Element::node(format!("arg{}", i)).with_text(n));
             }
         }
-        return v;
+        v
     }
 }
 

@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::num::ParseIntError;
 use xmltree::Element;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Error {
     /// Element was expected at path, but was not found.
     NotFoundAtPath { path: Vec<String> },
