@@ -21,8 +21,8 @@ async fn main() -> Result<(), savon::Error> {
     let client = soap::CountryInfoService::new(base_url.to_string());
 
     let res = client
-        .list_of_continents_by_name(soap::ListOfContinentsByNameSoapRequest(
-            soap::ListOfContinentsByName {},
+        .list_of_continents_by_name(soap::messages::ListOfContinentsByNameSoapRequest(
+            soap::types::ListOfContinentsByName {},
         ))
         .await?;
 
