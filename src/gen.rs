@@ -483,8 +483,6 @@ mod tests {
     const WIKIPEDIA_WSDL: &[u8] = include_bytes!("../assets/wikipedia-example.wsdl");
     const EXAMPLE_WSDL: &[u8] = include_bytes!("../assets/example.wsdl");
 
-    use crate::wsdl::*;
-
     #[test]
     #[ignore]
     fn example() {
