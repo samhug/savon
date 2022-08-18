@@ -170,7 +170,7 @@ pub fn parse(bytes: &[u8]) -> Result<Wsdl, WsdlError> {
                     )),
                 };
 
-                match (min_occurs, max_occurs) {
+                match (&min_occurs, &max_occurs) {
                     (Some(Occurence::Num(0)), Some(Occurence::Num(1))) => {
                         nillable = true;
                         min_occurs = None;
