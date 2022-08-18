@@ -11,7 +11,7 @@ documentation = "https://docs.rs/savon"
 keywords = ["soap"]
 
 [dependencies]
-case = "^1.0"
+case = "1.0"
 chrono = "0.4"
 log = "0.4"
 proc-macro2 = "1.0"
